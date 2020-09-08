@@ -1,18 +1,36 @@
-const {io} = require('../index');
+const { io } = require('../index');
+const { comprobarJWT } = require('../helpers/jwt');
+const { usuarioConectado, usuarioDesconectado, grabarMensaje } = require('../controllers/socket');
 
 // Mensajes de Sockets
-io.on('connection', client => {
-    console.log('Cliente conectado');
+io.on('connection', (client) => {
+  console.log('Cliente conectado');
+  const [valido, uid] = comprobarJWT(client.handshake.headers['x-token'])
 
+  // Verificar autenticación
+  if (!valido) {return client.disconnect();}
 
-    client.on('disconnect', () => { 
-        console.log('Cliente desconectado');
-     });
+  // Cliente autenticado
+  usuarioConectado(uid);
 
-    //  client.on('mensaje', (payload) => {
-    //      console.log('Mensaje', payload);
+  // Ingresar al usuario a una sala especifica
+  // sala global, client.id
+  client.join(uid);
 
-    //      io.emit( 'mensaje', {admin: 'Nuevo mensaje'} );
-    //  });
-
+  // Escuchar del cliente el mensaje-personal
+  client.on('mensaje-personal', async (payload) => {
+    await grabarMensaje(payload);
+    io.to(payload.para).emit('mensaje-personal', payload);
   });
+
+  client.on('disconnect', () => {
+    usuarioDesconectado(uid);
+  });
+
+  //  client.on('mensaje', (payload) => {
+  //      console.log('Mensaje', payload);
+
+  //      io.emit( 'mensaje', {admin: 'Nuevo mensaje'} );
+  //  });
+
+});
